@@ -24,14 +24,14 @@ train:
     - python -m spacy train ./configs/cnn.cfg -o training/cnn --gpu-id -1
   deps:
     - path: corpus/train.spacy
-      md5: 460111d0076cd86c07a45cc1756d2939
+      md5: f635bbca27b3e74844978d1495ff8ab4
     - path: corpus/dev.spacy
-      md5: 0111ce1374c679e75ef4a24d03963679
+      md5: 8aa5c2dd23beb7e8d1d372b455cb6210
     - path: configs/cnn.cfg
       md5: 9096071d826ffea02be70fdc5656f65a
   outs:
     - path: training/cnn/model-best
-      md5: 75237b56ad8962ade1b2df76cb8efeb7
+      md5: 5eca0f64f370b3e1849fdee0229f0940
 evaluate:
   cmd: python -m weasel run evaluate
   script:
@@ -39,9 +39,9 @@ evaluate:
       ./metrics/cnn.json
   deps:
     - path: training/cnn/model-best
-      md5: 75237b56ad8962ade1b2df76cb8efeb7
+      md5: 5eca0f64f370b3e1849fdee0229f0940
     - path: corpus/test.spacy
-      md5: f41c6811c0b7e271dc58e69b9237235a
+      md5: ad04e401ea2a304aa84061a131407259
   outs:
     - path: metrics/cnn.json
-      md5: 5f4b0242ea3a3dd20af35aa663cb34e9
+      md5: 2a8282107bc22b5aee04b59004370d76

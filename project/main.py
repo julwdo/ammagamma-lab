@@ -7,6 +7,7 @@ import numpy as np
 import subprocess
 import os
 import spacy
+from prophet.diagnostics import cross_validation
 
 # News data
 news = pd.read_csv('D:/Studies/Materials/Second-cycle/I year/III trimester/Ammagamma-Lab/ammagamma-lab/project/news.csv')
@@ -159,6 +160,9 @@ forex_test_s['sentiment'] = forex_test_s['sentiment'].apply(lambda x: 0 if x == 
 forex_test_s = forex_test_s[['ds', 'y', 'sentiment']]
 forex_test_s.head()
 
+forex_s = pd.concat([forex_train_s, forex_test_s])
+forex_s.shape[0]
+
 m_s = Prophet()
 m_s.add_regressor('sentiment')
 m_s.fit(forex_test_s)
@@ -173,6 +177,17 @@ print(f"Mean Absolute Error (MAE): {mae_s:.4f}")
 print(f"Percent Mean Absolute Error (%MAE): {percent_mae_value_s:.2f}%")
 print(f"Root Mean Square Error (RMSE): {rmse_s:.4f}")
 print(f"Bias: {bias_value_s:.4f}")
+
+# Perform cross-validation
+cut_offs = pd.DataFrame(forex_s[-114:-14]['ds'])
+
+forex_s.tail(20)
+
+date_strings = [timestamp.strftime('%Y-%m-%d') for timestamp in cut_offs['ds'].to_list()] # Fix dates here
+date_strings
+
+m_s_cv = cross_validation(m_s, cutoffs = pd.to_datetime(date_strings), period = '1 days', horizon = '14 days')
+m_s_cv
 
 # Train a model for binary classification: y increase/decrease 5 days from now
 forex_b = forex[['date', 'eurusd_close']].rename(columns={'date': 'ds', 'eurusd_close': 'y'})
@@ -209,9 +224,9 @@ dev_b = remaining_b[test_end_b:] # Development set
 
 path = 'D:/Studies/Materials/Second-cycle/I year/III trimester/Ammagamma-Lab/ammagamma-lab/project/news-1/assets/'
 
-train.to_csv(path + 'train.tsv', sep='\t', index=False, header=False)
-test.to_csv(path + 'test.tsv', sep='\t', index=False, header=False)
-dev.to_csv(path + 'dev.tsv', sep='\t', index=False, header=False)
+train_b.to_csv(path + 'train.tsv', sep='\t', index=False, header=False)
+test_b.to_csv(path + 'test.tsv', sep='\t', index=False, header=False)
+dev_b.to_csv(path + 'dev.tsv', sep='\t', index=False, header=False)
 
 os.chdir('D:/Studies/Materials/Second-cycle/I year/III trimester/Ammagamma-Lab/ammagamma-lab/project/news-1')
 subprocess.run('spacy project run preprocess', shell=True)
