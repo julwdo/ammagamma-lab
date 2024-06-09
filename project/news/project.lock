@@ -1,0 +1,34 @@
+preprocess:
+  cmd: python -m weasel run preprocess
+  script:
+    - python scripts/convert_corpus.py
+  deps:
+    - path: assets/train.tsv
+      md5: 146a0c708fb4ca3f991337afde0e4e13
+    - path: assets/dev.tsv
+      md5: d6a22de1803f69b369b9dcf19aa9c917
+    - path: assets/test.tsv
+      md5: 293d3e8ba991d770f940f46634e58b8f
+    - path: assets/categories.txt
+      md5: 08f15c12d9aa55ecbcdf60a965194c28
+  outs:
+    - path: corpus/train.spacy
+      md5: cf00311ef55a9eaef3b90574fe4ab379
+    - path: corpus/dev.spacy
+      md5: cec21f8a51e7a2e914b9e10075ab49e2
+    - path: corpus/test.spacy
+      md5: 77705718ca21465035675a34fa01f175
+train:
+  cmd: python -m weasel run train
+  script:
+    - python -m spacy train ./configs/cnn.cfg -o training/cnn --gpu-id -1
+  deps:
+    - path: corpus/train.spacy
+      md5: cf00311ef55a9eaef3b90574fe4ab379
+    - path: corpus/dev.spacy
+      md5: cec21f8a51e7a2e914b9e10075ab49e2
+    - path: configs/cnn.cfg
+      md5: 9096071d826ffea02be70fdc5656f65a
+  outs:
+    - path: training/cnn/model-best
+      md5: 1385a118e0e180452537dd562f6eb5c5
