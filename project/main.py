@@ -214,6 +214,79 @@ plt.show()
 vaccinations = pd.read_csv('D:/Studies/Materials/Second-cycle/I year/III trimester/Ammagamma-Lab/ammagamma-lab/project/vaccinations.csv')
 vaccinations.head()
 
+vaccinations = vaccinations[['iso_code', 'date', 'total_vaccinations_per_hundred']]
+
+european_countries_alpha3 = [
+    "ALB", "AND", "ARM", "AUT", "AZE", "BLR", "BEL", "BIH", "BGR", "HRV", "CYP", "CZE", "DNK", "EST", "FIN",
+    "FRA", "GEO", "DEU", "GRC", "HUN", "ISL", "IRL", "ITA", "KAZ", "XKX", "LVA", "LIE", "LTU", "LUX", "MLT",
+    "MDA", "MCO", "MNE", "NLD", "MKD", "NOR", "POL", "PRT", "ROU", "RUS", "SMR", "SRB", "SVK", "SVN", "ESP",
+    "SWE", "CHE", "TUR", "UKR", "GBR", "VAT"
+]
+
+north_american_countries_alpha3 = [
+    "ATG", "BHS", "BRB", "BLZ", "CAN", "CRI", "CUB", "DMA", "DOM", "SLV", "GRD", "GTM", "HTI", "HND", "JAM",
+    "MEX", "NIC", "PAN", "KNA", "LCA", "VCT", "TTO", "USA"
+]
+
+countries = european_countries_alpha3 + north_american_countries_alpha3
+
+vaccinations = vaccinations[vaccinations['iso_code'].isin(countries)] # Filter for European and North American countries
+vaccinations = vaccinations.groupby('date')['total_vaccinations_per_hundred'].mean().reset_index().rename(columns={'total_vaccinations_per_hundred': 'vaccination_rate'}) # Group by date and compute mean vaccination rate
+vaccinations['date'] = pd.to_datetime(vaccinations['date'])
+vaccinations.head()
+
+forex_train_v = forex_train_s.merge(vaccinations, left_on='ds', right_on='date')
+forex_train_v = forex_train_v[['ds', 'y', 'sentiment', 'vaccination_rate']]
+forex_train_v.head()
+
+forex_test_v = forex_test_s.merge(vaccinations, left_on='ds', right_on='date')
+forex_test_v = forex_test_v[['ds', 'y', 'sentiment', 'vaccination_rate']]
+forex_test_v.head()
+
+forex_v = pd.concat([forex_train_v, forex_test_v])
+forex_v.shape[0]
+
+m_v = Prophet()
+m_v.add_regressor('sentiment')
+m_v.add_regressor('vaccination_rate')
+m_v.fit(forex_test_v)
+
+forex_test_v_1 = m_v.predict(forex_test_v[['ds', 'sentiment', 'vaccination_rate']])[['ds', 'yhat_lower', 'yhat_upper', 'yhat']]
+forex_test_v_1 = forex_test_v_1.merge(forex_test_v, left_on='ds', right_on='ds')
+forex_test_v_1.tail()
+
+mae_v, percent_mae_value_v, rmse_v, bias_value_v = compute_metrics(forex_test_v_1['y'], forex_test_v_1['yhat'])
+print(f"Model Evaluation Metrics:\n")
+print(f"Mean Absolute Error (MAE): {mae_v:.4f}")
+print(f"Percent Mean Absolute Error (%MAE): {percent_mae_value_v:.2f}%")
+print(f"Root Mean Square Error (RMSE): {rmse_v:.4f}")
+print(f"Bias: {bias_value_v:.4f}")
+
+# Perform cross-validation
+m_v_cv = cross_validation(m_v, cutoffs = pd.to_datetime(date_strings), period = '1 days', horizon = '14 days')
+m_v_cv
+
+# Is the model able to predict y increase/decrease 14 days from the cutoff date?
+m_v_cv['days_difference'] = m_v_cv['ds'] - m_v_cv['cutoff']
+m_v_cv['days_difference'] = m_v_cv['days_difference'].dt.days
+m_v_cv.head()
+
+m_v_cv_selected = m_v_cv[m_v_cv['days_difference'] == 14][['ds', 'yhat', 'y', 'cutoff']]
+m_v_cv_selected = m_v_cv_selected.rename(columns={'y': 'y_ds'}).merge(forex_s[['ds', 'y']], how='left', left_on='cutoff', right_on='ds').drop("ds_y", axis= 1).rename(columns={'ds_x': 'ds', 'y': 'y_cutoff'})
+m_v_cv_selected['delta_y_cutoff_to_ds'] = m_v_cv_selected['y_ds'] - m_v_cv_selected['y_cutoff']
+m_v_cv_selected['delta_y_cutoff_to_yhat'] = m_v_cv_selected['yhat'] - m_v_cv_selected['y_cutoff']
+
+m_v_cv_selected['delta_y_cutoff_to_ds'] = m_v_cv_selected['delta_y_cutoff_to_ds'].apply(lambda x: 1 if x>0 else 0)
+m_v_cv_selected['delta_y_cutoff_to_yhat'] = m_v_cv_selected['delta_y_cutoff_to_yhat'].apply(lambda x: 1 if x>0 else 0)
+m_v_cv_selected
+
+acc_v = accuracy_score(m_v_cv_selected['delta_y_cutoff_to_ds'], m_v_cv_selected['delta_y_cutoff_to_yhat'])
+print(f"Accuracy: {acc_v:.4f}")
+
+conf_mat_v = confusion_matrix(m_v_cv_selected['delta_y_cutoff_to_ds'], m_v_cv_selected['delta_y_cutoff_to_yhat'])
+ConfusionMatrixDisplay(conf_mat_v).plot()
+plt.show()
+
 # Train a model for binary classification: y increase/decrease 5 days from now
 forex_b = forex[['date', 'eurusd_close']].rename(columns={'date': 'ds', 'eurusd_close': 'y'})
 forex_b.head()
