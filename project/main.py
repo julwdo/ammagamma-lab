@@ -8,6 +8,8 @@ import subprocess
 import os
 import spacy
 from prophet.diagnostics import cross_validation
+from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
 
 # News data
 news = pd.read_csv('D:/Studies/Materials/Second-cycle/I year/III trimester/Ammagamma-Lab/ammagamma-lab/project/news.csv')
@@ -179,15 +181,38 @@ print(f"Root Mean Square Error (RMSE): {rmse_s:.4f}")
 print(f"Bias: {bias_value_s:.4f}")
 
 # Perform cross-validation
-cut_offs = pd.DataFrame(forex_s[-114:-14]['ds'])
-
-forex_s.tail(20)
+cut_offs = pd.DataFrame(forex_s[(forex_s['ds'] >= '2024-01-01') & (forex_s['ds'] <= '2024-05-20')]['ds'])
 
 date_strings = [timestamp.strftime('%Y-%m-%d') for timestamp in cut_offs['ds'].to_list()] # Fix dates here
 date_strings
 
 m_s_cv = cross_validation(m_s, cutoffs = pd.to_datetime(date_strings), period = '1 days', horizon = '14 days')
 m_s_cv
+
+# Is the model able to predict y increase/decrease 14 days from the cutoff date?
+m_s_cv['days_difference'] = m_s_cv['ds'] - m_s_cv['cutoff']
+m_s_cv['days_difference'] = m_s_cv['days_difference'].dt.days
+m_s_cv.head()
+
+m_s_cv_selected = m_s_cv[m_s_cv['days_difference'] == 14][['ds', 'yhat', 'y', 'cutoff']]
+m_s_cv_selected = m_s_cv_selected.rename(columns={'y': 'y_ds'}).merge(forex_s[['ds', 'y']], how='left', left_on='cutoff', right_on='ds').drop("ds_y", axis= 1).rename(columns={'ds_x': 'ds', 'y': 'y_cutoff'})
+m_s_cv_selected['delta_y_cutoff_to_ds'] = m_s_cv_selected['y_ds'] - m_s_cv_selected['y_cutoff']
+m_s_cv_selected['delta_y_cutoff_to_yhat'] = m_s_cv_selected['yhat'] - m_s_cv_selected['y_cutoff']
+
+m_s_cv_selected['delta_y_cutoff_to_ds'] = m_s_cv_selected['delta_y_cutoff_to_ds'].apply(lambda x: 1 if x>0 else 0)
+m_s_cv_selected['delta_y_cutoff_to_yhat'] = m_s_cv_selected['delta_y_cutoff_to_yhat'].apply(lambda x: 1 if x>0 else 0)
+m_s_cv_selected
+
+acc_s = accuracy_score(m_s_cv_selected['delta_y_cutoff_to_ds'], m_s_cv_selected['delta_y_cutoff_to_yhat'])
+print(f"Accuracy: {acc_s:.4f}")
+
+conf_mat_s = confusion_matrix(m_s_cv_selected['delta_y_cutoff_to_ds'], m_s_cv_selected['delta_y_cutoff_to_yhat'])
+ConfusionMatrixDisplay(conf_mat_s).plot()
+plt.show()
+
+# Include the COVID-19 vaccination rate as an additional regressor in the first model
+vaccinations = pd.read_csv('D:/Studies/Materials/Second-cycle/I year/III trimester/Ammagamma-Lab/ammagamma-lab/project/vaccinations.csv')
+vaccinations.head()
 
 # Train a model for binary classification: y increase/decrease 5 days from now
 forex_b = forex[['date', 'eurusd_close']].rename(columns={'date': 'ds', 'eurusd_close': 'y'})
